@@ -1,2 +1,2 @@
-include *.txt
+include *.py *.txt
 recursive-include runremotely *.py *.txt
