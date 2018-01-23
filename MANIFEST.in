@@ -1,3 +1,2 @@
-include versioneer.py
-include remote/_version.py
-include remote/remote.py
+include *.txt
+recursive-include runremotely *.py *.txt
