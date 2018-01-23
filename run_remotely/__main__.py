@@ -169,7 +169,6 @@ def runcmd(cmd, server):
                            "cd %s && %s" % (server['syncdir'], " ".join(cmd))])
 
 
-
 def main():
     args = get_argparser().parse_args()
     config = read_config()

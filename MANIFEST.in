@@ -1,2 +1,3 @@
 include versioneer.py
 include remote/_version.py
+include remote/remote.py
