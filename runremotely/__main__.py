@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-import os
-import sys
 import argparse
+import os
 import subprocess
+import sys
+
 import yaml
 
 DESCRIPTION = """
@@ -24,6 +25,7 @@ CONFFILE = '.remote'
 def get_argparser():
     parser = argparse.ArgumentParser("remote",
                                      description=DESCRIPTION)
+    parser.add_argument('-d', '--debug', action='store_true', help="Verboser output")
 
     subparsers = parser.add_subparsers()
 
@@ -33,12 +35,22 @@ def get_argparser():
                          nargs='?')
     show_cmd.set_defaults(func=do_show)
 
-    run_cmd = subparsers.add_parser('run', help='Run a command on the remote server')
-    run_cmd.add_argument('name', help="Server to run on")
-    run_cmd.add_argument('command', nargs=argparse.REMAINDER, help="Remote command to run")
-    run_cmd.add_argument('--no-sync', '-n', action='store_true',
-                         help="Do not sync before running command")
+    remote_cmd_parser = argparse.ArgumentParser(add_help=False)
+    remote_cmd_parser.add_argument('name', help="Server to run on")
+    remote_cmd_parser.add_argument('--no-sync', '-n', action='store_true',
+                                   help="Do not sync before running command")
+
+    run_cmd = subparsers.add_parser('run',
+                                    help='Run a command on the remote server',
+                                    parents=[remote_cmd_parser])
+    run_cmd.add_argument('command',
+                                   nargs=argparse.REMAINDER, help="Remote command to run")
     run_cmd.set_defaults(func=do_run)
+
+    ssh_cmd = subparsers.add_parser('ssh',
+                                    parents=[remote_cmd_parser],
+                                    help="Open ssh session to remote directory")
+    ssh_cmd.set_defaults(func=do_ssh)
 
     sync_cmd = subparsers.add_parser('sync', help='Send this directory to the remote one')
     sync_cmd.add_argument('name', help="Server to sync")
@@ -123,8 +135,8 @@ def do_add(args, config):
         yaml.dump(config, outfile, default_flow_style=False)
 
 
-def do_run(args, config):
-    """ Add a new remote to the current configuration
+def do_run(args, config, cmd=None):
+    """ Run a command remotely
 
     Args:
         args (argparse.Namespace): parsed CLI arguments
@@ -134,8 +146,28 @@ def do_run(args, config):
     if not (server['nosync'] or args.no_sync):
         sync(server, verbose=False)
 
-    runcmd(args.command, server)
+    if cmd is None:
+        cmd = "bash -l -c '%s'" % " ".join(args.command)
 
+    runcmd(cmd, server, verbose=args.debug)
+
+
+def runcmd(cmd, server, verbose=False):
+    sshcmd = ["ssh", '-t', server['host'],
+              "cd %s && %s" % (server['syncdir'], cmd)]
+    if verbose:
+        print('> %s' % " ".join(sshcmd))
+    subprocess.check_call(sshcmd)
+
+
+def do_ssh(args, config):
+    """ Open an ssh connection
+
+    Args:
+        args (argparse.Namespace): parsed CLI arguments
+        config (dict): current config for this directory (or None if it's unconfigured)
+    """
+    do_run(args, config, cmd=['exec', 'bash', '-l'])
 
 
 def do_sync(args, config):
@@ -150,22 +182,17 @@ def do_sync(args, config):
         print('Sync is disabled for this server!')
         sys.exit(1)
 
-    sync(server)
+    sync(server, verbose=args.debug)
 
 
 def sync(server, verbose=True):
     remotepath = "%s://%s" % (server['host'], server['syncdir'])
     if verbose: print("Syncing to %s ..." % remotepath)
-    subprocess.check_call(['rsync',
-                           '-rz' + ('v' if verbose else ''),
-                           '.',
+    subprocess.check_call(['rsync', '-rz' + ('v' if verbose else ''), '.',
                            remotepath])
     if verbose: print("sync done.")
 
 
-def runcmd(cmd, server):
-    subprocess.check_call(["ssh", server['host'],
-                           "cd %s && %s" % (server['syncdir'], " ".join(cmd))])
 
 
 def main():
