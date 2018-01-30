@@ -167,7 +167,7 @@ def do_ssh(args, config):
         args (argparse.Namespace): parsed CLI arguments
         config (dict): current config for this directory (or None if it's unconfigured)
     """
-    do_run(args, config, cmd=['exec', 'bash', '-l'])
+    do_run(args, config, cmd='exec bash -l')
 
 
 def do_sync(args, config):
